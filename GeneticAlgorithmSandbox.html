@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Genetic Algorithm Sandbox</title>
+		<script src="Neural Network.js"></script>
+	</head>
+	
+	<body>
+		<canvas id="canvas"></canvas>
+		
+		<style>
+			#canvas {
+				position: absolute;
+				display: block;
+				top: 0px;
+				left: 0px;
+				image-rendering: crisp-edges;
+			}
+			
+			body {
+				overflow: hidden;
+			}
+		</style>
+		
+		<script>
+			var canvas = document.getElementById("canvas");
+			var ctx = canvas.getContext("2d");
+			canvas.width = window.screen.width;
+			canvas.height = window.screen.height;
+			canvas.imageSmoothingEnabled = false;
+			
+			var script = document.createElement("script");
+			script.src = "Organism.js";
+			document.head.appendChild(script);
+		</script>
+	</body>
+</html>
