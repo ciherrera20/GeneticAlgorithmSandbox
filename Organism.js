@@ -49,7 +49,7 @@ function temp(x, y) {
 
 // Initialize the map to all 0s
 for (var i = 0; i < (worldMap.width * worldMap.height); i++) {
-	if (Math.random() > 0.01)
+	if (Math.random() > 0.05)
 		worldMap.blocks.push(0);
 	else
 		new Block((i % worldMap.width), Math.floor(i / worldMap.width), 1, undefined);
@@ -262,8 +262,6 @@ function Organism(origin_x, origin_y, dna) {
 			if (!canMove)
 				return;
 			
-			var toRemove = [];
-			
 			for (var i = 0; i < blockData.blocks.length; i++) {
 				var block = blockData.blocks[i];
 				
@@ -310,10 +308,6 @@ function Organism(origin_x, origin_y, dna) {
 						block.decY();
 				}
 			});*/
-			
-			toRemove.forEach(function(obj) {
-				obj.block.destroy(obj.oldBlock);
-			});
 		}
 		
 		// The object literal returned to the variable move
@@ -373,6 +367,10 @@ function Organism(origin_x, origin_y, dna) {
 					connectBlocks(neighbors[key]);
 				}
 			});
+		}
+		
+		if (blockData.brain.length === 0) {
+			organisms.splice(organisms.indexOf(self), 1);
 		}
 		
 		// Connects blocks, starting with the organism's brains
@@ -436,7 +434,7 @@ function Organism(origin_x, origin_y, dna) {
 		if (massPoints >= targetMass) {
 			console.log("New org!");
 			new Organism(organismX + 15, organismY + 15, dna);
-			massPoints -= targetMass;
+			console.log(massPoints);
 		}
 	}, get() {
 		return massPoints;
@@ -580,7 +578,7 @@ setInterval(function() {
 	organisms.forEach(function(org) {
 		org.makeDecision();
 	});
-}, 100);
+}, 0);
 
 window.addEventListener("keydown", function(e) {
 	switch (e.keyCode) {
