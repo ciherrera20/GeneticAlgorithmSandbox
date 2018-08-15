@@ -633,6 +633,7 @@ function createSaveData() {
 		return str;
 	}
 	
+	//var dataLength = 32 + worldMap.width * worldMap.height + Organism.instances.length * (727996);
 	var saveData = "";
 	
 	// Add the width and height to the saveData
@@ -684,7 +685,7 @@ function createSaveData() {
 			});
 		});
 	});
-	
+
 	return convertBinaryStringToUint8Array(saveData);
 	//return saveData;
 }
