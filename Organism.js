@@ -390,8 +390,16 @@ function Organism(origin_x, origin_y, dna) {
 	}
 	
 	// The neural network that controls the organism
-	var network = new Network(3, [424, 213, 2], data.w, data.bi);
-	network.init();
+	if (!data.w || !data.bi) {
+		var network = new Network(3, [424, 213, 2]);
+		network.init();
+		data.w = network.getWeights();
+		data.bi = network.getBiases();
+		dna = JSON.stringify(data);
+	} else {
+		var network = new Network(3, [424, 213, 2], data.w, data.bi);
+		network.init();
+	}
 	
 	// Runs the neural network
 	this.makeDecision = function() {
@@ -454,7 +462,8 @@ function Organism(origin_x, origin_y, dna) {
 }
 Organism.instances = [];
 save.orgInstances.forEach(function(instance) {
-	Organism.instances.push(new Organism(instance.x, instance.y, instance.dna));
+	var org = new Organism(instance.x, instance.y, instance.dna);
+	org.massPoints = instance.massPoints;
 });
 
 // Block constructor
@@ -599,6 +608,17 @@ var loop = (function(){
 })();
 
 function createSaveData() {
+	function convertBinaryStringToUint8Array(bStr) {
+		for (var i = 0; i < bStr.length % 8; i++) {
+			bStr += "0";
+		}
+		var i, len = bStr.length, u8_array = new Uint8Array(Math.floor(len / 8));
+		for (var i = 0; i < Math.floor(len / 8); i++) {
+			u8_array[i] = Number("0b" + bStr.slice(i * 8, i * 8 + 8));
+		}
+		return u8_array;
+	}
+	
 	function toBinary(number, bits) {
 		var str = "";
 		str = number.toString(2);
@@ -633,6 +653,7 @@ function createSaveData() {
 		saveData += "01101111011001110111001001110011"; // The sequence 01101111011001110111001001110011 means that a new org is being defined
 		saveData += toBinary(org.x, 16);
 		saveData += toBinary(org.y, 16);
+		saveData += toBinary(org.massPoints, 8);
 		
 		var data = org.data;
 		data.b.forEach(function (elem){
@@ -664,7 +685,8 @@ function createSaveData() {
 		});
 	});
 	
-	return saveData;
+	return convertBinaryStringToUint8Array(saveData);
+	//return saveData;
 }
 
 /*window.addEventListener("keydown", function(e) {
