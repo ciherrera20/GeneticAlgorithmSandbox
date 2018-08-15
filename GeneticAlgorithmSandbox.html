@@ -6,6 +6,7 @@
 	</head>
 	
 	<body>
+		<input id="loadSave" type="file" name="loadSave" accept=".bin">
 		<canvas id="canvas"></canvas>
 		
 		<style>
@@ -14,24 +15,257 @@
 				display: block;
 				top: 0px;
 				left: 0px;
+				width: 0px;
+				height: 0px;
 				image-rendering: crisp-edges;
 			}
 			
-			body {
+			#load {
 				
 			}
 		</style>
 		
 		<script>
+			var localStorage = window.localStorage;
 			var canvas = document.getElementById("canvas");
 			var ctx = canvas.getContext("2d");
-			canvas.width = window.screen.width;
-			canvas.height = window.screen.height;
-			canvas.imageSmoothingEnabled = false;
+			var loadSave = document.getElementById("loadSave");
+			var save = {};
+			var initialized = false;
+		
+			function init(binaryString) {
+				initialized = true;
+				var index = 0;
+				
+				save.mapWidth = Number("0b" + binaryString.slice(0, 16));
+				save.mapHeight = Number("0b" + binaryString.slice(16, 32));
+				index = 32;
+				
+				save.blocks = [];
+				
+				for (index; index < (save.mapWidth * save.mapHeight) + 32; index++) {
+					save.blocks.push(Number(binaryString[index]));
+				}
+				
+				save.orgInstances = [];
+				
+				while (binaryString.slice(index, index + 32) === "01101111011001110111001001110011") {
+					index += 32;
+					
+					var instance = {dna: ""};
+					var orgData = binaryString.slice(index, index + 727956);
+					instance.x = Number("0b" + orgData.slice(0, 16));
+					instance.y = Number("0b" + orgData.slice(16, 32));
+					var bodyData = orgData.slice(32, 332);
+					var weightData = orgData.slice(332, 726236);
+					var biasData = orgData.slice(726236, 727956);
+					
+					// Decodes the body of the organism
+					instance.dna += "{\"b\":[";
+					var bodyDataIndex = 0;
+					
+					for (var i = 0; i < 100; i++) {
+						// Add the block type to the string
+						instance.dna += Number("0b" + bodyData.slice(bodyDataIndex, bodyDataIndex + 3)).toString();
+						
+						// Add a comma to the string
+						if (i < 99) {
+							instance.dna += ",";
+						}
+						
+						// Increase the bodyDataIndex
+						bodyDataIndex += 3;
+					}
+					
+					instance.dna += "],\"w\":[[";
+					var weightDataIndex = 0;
+					
+					for (var i = 0; i < 213; i++) {
+						instance.dna += "[";
+						for (var j = 0; j < 424; j++) {
+							var weight = 1;
+							
+							// Get the sign of the weight
+							if (weightData[weightDataIndex] === "0") {
+								weight = -1;
+							}
+							
+							// Get the value of the weight
+							weight *= Number("0b" + weightData.slice(weightDataIndex + 1, weightDataIndex + 8)) * 0.01;
+							
+							// Add the weight to the dna string
+							instance.dna += weight.toString();
+							
+							// Add a comma to the string
+							if (j < 423) {
+								instance.dna += ",";
+							}
+							
+							// Increase the weightDataIndex
+							weightDataIndex += 8;
+						}
+						instance.dna += "]";
+						if (i < 212) {
+							instance.dna += ",";
+						}
+					}
+					
+					instance.dna += "],[";
+					
+					for (var i = 0; i < 2; i++) {
+						instance.dna += "[";
+						for (var j = 0; j < 213; j++) {
+							var weight = 1;
+							
+							// Get the sign of the weight
+							if (weightData[weightDataIndex] === "0") {
+								weight = -1;
+							}
+							
+							// Get the value of the weight
+							weight *= Number("0b" + weightData.slice(weightDataIndex + 1, weightDataIndex + 8)) * 0.01;
+							
+							// Add the weight to the dna string
+							instance.dna += weight.toString();
+							
+							// Add a comma to the string
+							if (j < 212) {
+								instance.dna += ",";
+							}
+							
+							// Increase the weightDataIndex
+							weightDataIndex += 8;
+						}
+						instance.dna += "]";
+						if (i < 1) {
+							instance.dna += ",";
+						}
+					}
+					
+					instance.dna += "]],\"bi\":[[";
+					var biasDataIndex = 0;
+					
+					for (var i = 0; i < 213; i++) {
+						var bias = 1;
+							
+						// Get the sign of the bias
+						if (biasData[biasDataIndex] === "0") {
+							bias = -1;
+						}
+							
+						// Get the value of the bias
+						bias *= Number("0b" + biasData.slice(biasDataIndex + 1, biasDataIndex + 8)) * 0.01;
+							
+						// Add the bias to the dna string
+						instance.dna += bias.toString();
+							
+						// Add a comma to the string
+						if (i < 212) {
+							instance.dna += ",";
+						}
+							
+						// Increase the weightDataIndex
+						biasDataIndex += 8;
+					}
+					
+					instance.dna += "],[";
+					
+					for (var i = 0; i < 2; i++) {
+						var bias = 1;
+							
+						// Get the sign of the bias
+						if (biasData[biasDataIndex] === "0") {
+							bias = -1;
+						}
+							
+						// Get the value of the bias
+						bias *= Number("0b" + biasData.slice(biasDataIndex + 1, biasDataIndex + 8)) * 0.01;
+							
+						// Add the bias to the dna string
+						instance.dna += bias.toString();
+							
+						// Add a comma to the string
+						if (i < 1) {
+							instance.dna += ",";
+						}
+							
+						// Increase the weightDataIndex
+						biasDataIndex += 8;
+					}
+					
+					instance.dna += "]]}";
+					
+					save.orgInstances.push(instance);
+					index += 727956;
+				}
+				
+				/*save.mapWidth = window.screen.width;
+				save.mapHeight = window.screen.height;
+				
+				save.blocks = [];
+				
+				for (var i = 0; i < (save.mapWidth * save.mapHeight); i++) {
+					if (Math.random() > 0.05)
+						save.blocks.push(0);
+					else
+						save.blocks.push(1);
+				}*/
+				
+				// Remove the file input
+				loadSave.parentNode.removeChild(loadSave);
 			
-			var script = document.createElement("script");
-			script.src = "Organism.js";
-			document.head.appendChild(script);
+				// Initialize the canvas width and height
+				canvas.style.width = save.mapWidth + "px";
+				canvas.style.height = save.mapHeight + "px";
+				canvas.width = save.mapWidth;
+				canvas.height = save.mapHeight;
+				canvas.imageSmoothingEnabled = false;
+				
+				// Add the Organism.js script
+				var script = document.createElement("script");
+				script.src = "Organism.js";
+				document.head.appendChild(script);
+				
+				script.onload = function () {
+					loop.start();
+				}
+			}
+			
+			var downloadSaveFile = (function() {
+				var a = document.createElement("a");
+				document.body.appendChild(a);
+				a.style = "display: none";
+				
+				return function () {
+					blob = new Blob([createSaveData()], {type: "application/octet-stream"});
+					url = window.URL.createObjectURL(blob);
+					a.href = url;
+					a.download = "save";
+					a.click();
+					window.URL.revokeObjectURL(url);
+				};
+			})();
+			
+			loadSave.addEventListener("change", function(e) {
+				var file = e.target.files[0];
+				var fileReader = new FileReader();
+				
+				fileReader.onload = function(e) {
+					init(fileReader.result);
+				};
+				
+				fileReader.readAsBinaryString(file);
+			});
+			
+			window.addEventListener("keydown", function (e) {
+				if (e.key === "Escape") {
+					if (initialized) {
+						var bool = confirm("Would you like to save?");
+						if (bool)
+							downloadSaveFile();
+					}
+				}
+			});
 		</script>
 	</body>
 </html>

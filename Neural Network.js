@@ -6,7 +6,7 @@
  *
  * init(): Initializes the network (i.e. creates and stores the layers)
  */
-function Network(numLayers, neuronArray)
+function Network(numLayers, neuronArray, weights, biases)
 {	
 	var numLayers = numLayers; // The number of layers in the network
 	var neuronArray = neuronArray; // The array whose elements correspond to the number of neurons in each layer
@@ -26,9 +26,13 @@ function Network(numLayers, neuronArray)
 			
 			if(i === 0) // Adds the input layer
 				layers[i] = new Layer(neuronArray[i]);
-			else // Adds the rest of the layers
-				layers[i] = new Layer(neuronArray[i], layers[i - 1]);
-				
+			else { // Adds the rest of the layers
+				if (!weights || !biases)
+					layers[i] = new Layer(neuronArray[i], layers[i - 1]);
+				else
+					layers[i] = new Layer(neuronArray[i], layers[i - 1], weights[i - 1], biases[i - 1]);
+			}	
+			
 			console.blog("	Initializing layer " + (i + 1));
 			
 			layers[i].init(); // Initializes the layer
@@ -58,6 +62,28 @@ function Network(numLayers, neuronArray)
 	{
 		return layers.last().getActivations();
 	}
+	
+	this.getWeights = function() {
+		var networkWeights = [];
+		layers.forEach(function(layer) {
+			var layerWeights = layer.getWeights();
+			if (!layerWeights)
+				return;
+			networkWeights.push(layer.getWeights());
+		});
+		return networkWeights;
+	}
+	
+	this.getBiases = function() {
+		var networkBiases = [];
+		layers.forEach(function(layer) {
+			var layerBiases = layer.getBiases();
+			if (!layerBiases)
+				return;
+			networkBiases.push(layerBiases);
+		});
+		return networkBiases;
+	}
 }
 
 /*
@@ -68,12 +94,14 @@ function Network(numLayers, neuronArray)
  *
  * init(): Initializes the layer (i.e. creates and stores the neurons)
  */
-function Layer(numNeurons, previousLayer)
+function Layer(numNeurons, previousLayer, weights, biases)
 {
 	var numNeurons = numNeurons; // The number of neurons in the layer
 	var neurons = []; // An array of *numNeurons* neurons
 	var previousLayer = previousLayer; // A reference to the preceding layer
 	var inputLayer = !previousLayer; // If no previousLayer was defined, the inputLayer is set to true
+	var weights = weights;
+	var biases = biases;
 	
 	console.blog("		Input layer: " + JSON.stringify(inputLayer));
 	
@@ -96,10 +124,14 @@ function Layer(numNeurons, previousLayer)
 		
 		for (var i = 0; i < numNeurons; i++) { // Adds the neurons to the *neurons* array
 			console.blog("		Creating neuron " + (i + 1));
-			if (inputLayer) // If the layer is an inputLayer, the neurons are initliazed without a bias or weights
+			if (inputLayer) { // If the layer is an inputLayer, the neurons are initliazed without a bias or weights
 				neurons.push(new Neuron());
-			else
-				neurons.push(new Neuron(pickRandom("-1.00", "1.00"), generateWeights(previousLayer.getNumNeurons())));
+			} else {
+				if (!weights || !biases)
+					neurons.push(new Neuron(pickRandom("-1.00", "1.00"), generateWeights(previousLayer.getNumNeurons())));
+				else
+					neurons.push(new Neuron(biases[i], weights[i]));
+			}		
 		}
 		
 		this.initialized = true;
@@ -141,6 +173,28 @@ function Layer(numNeurons, previousLayer)
 	{
 		return numNeurons;
 	}
+	
+	this.getWeights = function() {
+		if (inputLayer)
+			return;
+
+		var layerWeights = [];
+		neurons.forEach(function(neuron) {
+			layerWeights.push(neuron.getWeights());
+		});
+		return layerWeights;
+	}
+	
+	this.getBiases = function() {
+		if (inputLayer)
+			return;
+		
+		var layerBiases = [];
+		neurons.forEach(function(neuron) {
+			layerBiases.push(neuron.getBias());
+		});
+		return layerBiases;
+	}
 }
 
 function Neuron(bias, weights)
@@ -148,7 +202,7 @@ function Neuron(bias, weights)
 	var bias = bias; // A multiplier to the weighted sum
 	var weights = weights; // The weights given to each neuron in the previous layer
 	var activation = 0; // The activation value of the neuron
-	var inputNeuron = !bias || !weights; // If a bias or weights are not defined, the neuron is made an input neuron
+	var inputNeuron = !bias || !weights; // If a bias or weights are not defined, the neuron is an input neuron
 	
 	if (!!bias) console.blog("			Bias: " + bias);
 	console.blog("			Input neuron: " + JSON.stringify(inputNeuron));
@@ -182,6 +236,16 @@ function Neuron(bias, weights)
 			activation = num;
 			console.blog("			Activation set to " + num);
 		}
+	}
+	
+	this.getWeights = function() {
+		if (!inputNeuron)
+			return weights;
+	}
+	
+	this.getBias = function() {
+		if (!inputNeuron)
+			return bias;
 	}
 }
 

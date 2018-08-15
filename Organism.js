@@ -1,5 +1,5 @@
 // Stores all blocks and their relative positions in a map
-var worldMap = {blocks: [], width: canvas.width, height: canvas.height};
+var worldMap = {blocks: save.blocks, width: save.mapWidth, height: save.mapHeight};
 
 // Set a coordinate in the worldMap to a value
 worldMap.set = function(x, y, block) {
@@ -41,21 +41,23 @@ worldMap.get = function(x, y) {
 	return this.blocks[x + (y * this.width)];
 }
 
-function temp(x, y) {
-	x = x - (Math.floor(x / worldMap.width) * worldMap.width);
-	y = y - (Math.floor(y / worldMap.height) * worldMap.height);
-	console.log(x, y);
-}
+save.blocks.forEach(function(block, i) {
+	if (block === 1) {
+		var x = i % save.mapWidth;
+		var y = Math.floor(i / save.mapWidth);
+		block = new Block(x, y, 1, undefined);
+		ctx.fillStyle = "grey";
+		ctx.fillRect(x, y, 1, 1);
+	}
+});
 
 // Initialize the map to all 0s
-for (var i = 0; i < (worldMap.width * worldMap.height); i++) {
+/*for (var i = 0; i < (worldMap.width * worldMap.height); i++) {
 	if (Math.random() > 0.05)
 		worldMap.blocks.push(0);
 	else
 		new Block((i % worldMap.width), Math.floor(i / worldMap.width), 1, undefined);
-}
-
-var organisms = [];
+}*/
 
 // Organism constructor
 function Organism(origin_x, origin_y, dna) {
@@ -388,7 +390,7 @@ function Organism(origin_x, origin_y, dna) {
 	}
 	
 	// The neural network that controls the organism
-	var network = new Network(3, [424, 213, 2]);
+	var network = new Network(3, [424, 213, 2], data.w, data.bi);
 	network.init();
 	
 	// Runs the neural network
@@ -440,14 +442,20 @@ function Organism(origin_x, origin_y, dna) {
 		return massPoints;
 	}})
 	
-	organisms.push(this);
+	Organism.instances.push(this);
 	
 	// Getters to expose the organism's private variables. For debugging purposes only
 	Object.defineProperty(this, "blockData", {get(){return blockData}});
 	Object.defineProperty(this, "move", {get(){return move}});
+	Object.defineProperty(this, "network", {get(){return network}});
 	Object.defineProperty(this, "x", {get(){return organismX}});
 	Object.defineProperty(this, "y", {get(){return organismY}});
+	Object.defineProperty(this, "data", {get(){return data}});
 }
+Organism.instances = [];
+save.orgInstances.forEach(function(instance) {
+	Organism.instances.push(new Organism(instance.x, instance.y, instance.dna));
+});
 
 // Block constructor
 function Block(x, y, type, organism) {
@@ -572,15 +580,94 @@ function Block(x, y, type, organism) {
 	worldMap.set(x, y, this);
 }
 
-var org1 = new Organism(Math.round(worldMap.width / 2), Math.round(worldMap.height / 2), '{"b":[0,0,0,0,2,0,0,0,0,0,  0,0,0,1,1,1,1,1,2,0,  0,0,1,1,1,1,1,1,0,0,  2,1,1,1,1,3,3,1,1,0,  0,1,1,1,1,4,3,1,1,0,  0,2,1,1,1,1,1,1,1,2,  0,1,1,1,1,1,1,1,1,0,  0,0,1,1,1,1,1,1,0,0,  0,0,0,1,1,1,1,2,0,0,  0,0,0,0,2,0,0,0,0,0]}');
+var loop = (function(){
+	var id;
+	
+	function start() {
+		id = setInterval(function() {
+			Organism.instances.forEach(function(org) {
+				org.makeDecision();
+			});
+		}, 0);
+	}
+	
+	function stop() {
+		clearInterval(id);
+	}
+	
+	return {start: start, stop: stop};
+})();
 
-setInterval(function() {
-	organisms.forEach(function(org) {
-		org.makeDecision();
+function createSaveData() {
+	function toBinary(number, bits) {
+		var str = "";
+		str = number.toString(2);
+		while (str.length < bits) {
+			str = "0" + str;
+		}
+		
+		while (str.length > bits) {
+			str = str.slice(1)
+		}
+		
+		return str;
+	}
+	
+	var saveData = "";
+	
+	// Add the width and height to the saveData
+	saveData += toBinary(worldMap.width, 16);
+	saveData += toBinary(worldMap.height, 16);
+	
+	// Add the map to the saveData
+	worldMap.blocks.forEach(function (block) {
+		if (block === 0)
+			saveData += "0";
+		else if (!block.organism)
+			saveData += "1";
+		else
+			saveData += "0";
 	});
-}, 0);
+	
+	Organism.instances.forEach(function (org) {
+		saveData += "01101111011001110111001001110011"; // The sequence 01101111011001110111001001110011 means that a new org is being defined
+		saveData += toBinary(org.x, 16);
+		saveData += toBinary(org.y, 16);
+		
+		var data = org.data;
+		data.b.forEach(function (elem){
+			saveData += toBinary(elem, 3);
+		});
+		
+		data.w.forEach(function (lw) {
+			lw.forEach(function (nw) {
+				nw.forEach(function (w) {
+					var str = toBinary(Math.abs(w) * 100, 7);
+					if (w < 0)
+						str = "0" + str;
+					else
+						str = "1" + str;
+					saveData += str;
+				});
+			});
+		});
+		
+		data.bi.forEach(function (lb) {
+			lb.forEach(function (b) {
+				var str = toBinary(Math.abs(b) * 100, 7);
+				if (b < 0)
+					str = "0" + str;
+				else
+					str = "1" + str;
+				saveData += str;
+			});
+		});
+	});
+	
+	return saveData;
+}
 
-window.addEventListener("keydown", function(e) {
+/*window.addEventListener("keydown", function(e) {
 	switch (e.keyCode) {
         case 87:
 			org1.move.up();
@@ -595,4 +682,4 @@ window.addEventListener("keydown", function(e) {
 			org1.move.right();
 			break;
     }
-});
+});*/
