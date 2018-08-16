@@ -11,21 +11,23 @@ worldMap.set = function(x, y, block) {
 	y = y - (Math.floor(y / worldMap.height) * worldMap.height);
 	
 	// Draws the block onto the canvas
-	if (typeof block === "number") {
-		ctx.clearRect(x, y, 1, 1);
-	} else {
-		// Pick a color based on the block's type
-		if (block.attributes.attack)
-			ctx.fillStyle = "red";
-		else if (block.attributes.brain)
-			ctx.fillStyle = "green";
-		else if (block.attributes.reproduction)
-			ctx.fillStyle = "#fb04ab";
-		else
-			ctx.fillStyle = "grey";
-		
-		// Fill in the pixel
-		ctx.fillRect(x, y, 1, 1);
+	if (canvas.enabled) {
+		if (typeof block === "number") {
+			ctx.clearRect(x, y, 1, 1);
+		} else {
+			// Pick a color based on the block's type
+			if (block.attributes.attack)
+				ctx.fillStyle = "red";
+			else if (block.attributes.brain)
+				ctx.fillStyle = "green";
+			else if (block.attributes.reproduction)
+				ctx.fillStyle = "#fb04ab";
+			else
+				ctx.fillStyle = "grey";
+			
+			// Fill in the pixel
+			ctx.fillRect(x, y, 1, 1);
+		}
 	}
 		
 	this.blocks[x + (y * this.width)] = block;
@@ -40,6 +42,35 @@ worldMap.get = function(x, y) {
 	y = y - (Math.floor(y / worldMap.height) * worldMap.height);
 	return this.blocks[x + (y * this.width)];
 }
+
+worldMap.getCoords = function(index) {
+	index = index - (Math.floor(index / worldMap.blocks.length) * worldMap.blocks.length);
+	return {x: index % worldMap.width, y: Math.floor(index / worldMap.width)};
+}
+
+worldMap.refreshCanvas = function() {
+	worldMap.blocks.forEach(function(block, i) {
+		var coords = worldMap.getCoords(i);
+		worldMap.set(coords.x, coords.y, worldMap.get(coords.x, coords.y));
+	});
+}
+
+{
+	let enabled = true;
+	
+	Object.defineProperty(canvas, "enabled", {get() {
+		return enabled;
+	}, set(value) {
+		enabled = value;
+		if (enabled) {
+			canvas.style.display = "block";
+			worldMap.refreshCanvas();
+		} else
+			canvas.style.display = "none";
+	}});
+}
+
+canvas.enabled = true;
 
 save.blocks.forEach(function(block, i) {
 	if (block === 1) {
@@ -444,11 +475,34 @@ function Organism(origin_x, origin_y, dna) {
 		if (massPoints >= targetMass) {
 			console.log("New org!");
 			new Organism(organismX + 15, organismY + 15, dna);
-			console.log(massPoints);
 		}
 	}, get() {
 		return massPoints;
 	}})
+	
+	// Gets the current state of the organism
+	this.getState = function() {
+		var state = [];
+		
+		blockData.map.forEach(function(block) {
+			if (block === 0)
+				state.push(0);
+			else
+				state.push(1);
+		});
+		
+		return state;
+	}
+	
+	this.loadState = function(state) {
+		state.forEach(function(type, i) {
+			if (type === 0) {
+				blockData.map[i] = 0;
+			}
+		});
+		
+		self.evaluateSelf();
+	}
 	
 	Organism.instances.push(this);
 	
@@ -464,6 +518,7 @@ Organism.instances = [];
 save.orgInstances.forEach(function(instance) {
 	var org = new Organism(instance.x, instance.y, instance.dna);
 	org.massPoints = instance.massPoints;
+	org.loadState(instance.state);
 });
 
 // Block constructor
@@ -608,7 +663,8 @@ var loop = (function(){
 })();
 
 function createSaveData() {
-	function convertBinaryStringToUint8Array(bStr) {
+	loop.stop();
+	/*function convertBinaryStringToUint8Array(bStr) {
 		for (var i = 0; i < bStr.length % 8; i++) {
 			bStr += "0";
 		}
@@ -617,7 +673,7 @@ function createSaveData() {
 			u8_array[i] = Number("0b" + bStr.slice(i * 8, i * 8 + 8));
 		}
 		return u8_array;
-	}
+	}*/
 	
 	function toBinary(number, bits) {
 		var str = "";
@@ -633,43 +689,63 @@ function createSaveData() {
 		return str;
 	}
 	
-	//var dataLength = 32 + worldMap.width * worldMap.height + Organism.instances.length * (727996);
-	var saveData = "";
+	var dataLength = 32 + worldMap.width * worldMap.height + Organism.instances.length * (728096);
+	var saveData = new BitArray(dataLength);
+	var index = 0;
 	
 	// Add the width and height to the saveData
-	saveData += toBinary(worldMap.width, 16);
-	saveData += toBinary(worldMap.height, 16);
+	saveData.splice(index, 16, toBinary(worldMap.width, 16));
+	index += 16;
+	saveData.splice(index, 16, toBinary(worldMap.height, 16));
+	index += 16;
 	
 	// Add the map to the saveData
 	worldMap.blocks.forEach(function (block) {
 		if (block === 0)
-			saveData += "0";
+			saveData.setBit(index, 0);
 		else if (!block.organism)
-			saveData += "1";
+			saveData.setBit(index, 1);
 		else
-			saveData += "0";
+			saveData.setBit(index, 0);
+		index++;
 	});
 	
 	Organism.instances.forEach(function (org) {
-		saveData += "01101111011001110111001001110011"; // The sequence 01101111011001110111001001110011 means that a new org is being defined
-		saveData += toBinary(org.x, 16);
-		saveData += toBinary(org.y, 16);
-		saveData += toBinary(org.massPoints, 8);
-		
 		var data = org.data;
+		var state = org.getState();
+		
+		saveData.splice(index, 32, "01101111011001110111001001110011"); // The sequence 01101111011001110111001001110011 means that a new org is being defined
+		index += 32;
+		
+		saveData.splice(index, 16, toBinary(org.x, 16));
+		index += 16;
+		
+		saveData.splice(index, 16, toBinary(org.y, 16));
+		index += 16;
+		
+		saveData.splice(index, 8, toBinary(org.massPoints, 8));
+		index += 8;
+		
 		data.b.forEach(function (elem){
-			saveData += toBinary(elem, 3);
+			saveData.splice(index, 3, toBinary(elem, 3));
+			index += 3;
+		});
+		
+		state.forEach(function (elem) {
+			saveData.setBit(index, Number(elem));
+			index++;
 		});
 		
 		data.w.forEach(function (lw) {
-			lw.forEach(function (nw) {
+			lw.forEach(function (nw, i) {
 				nw.forEach(function (w) {
 					var str = toBinary(Math.abs(w) * 100, 7);
 					if (w < 0)
 						str = "0" + str;
 					else
 						str = "1" + str;
-					saveData += str;
+					saveData.splice(index, 8, str);
+					index += 8;
 				});
 			});
 		});
@@ -681,12 +757,14 @@ function createSaveData() {
 					str = "0" + str;
 				else
 					str = "1" + str;
-				saveData += str;
+				saveData.splice(index, 8, str);
+				index += 8;
 			});
 		});
 	});
 
-	return convertBinaryStringToUint8Array(saveData);
+	loop.start();
+	return saveData.getUint8Array();
 	//return saveData;
 }
 
